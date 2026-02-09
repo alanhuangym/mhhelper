@@ -2,7 +2,8 @@ const express = require("express");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
-const http = require("http");
+const sharp = require("sharp");
+const Tesseract = require("tesseract.js");
 const { QuestionBank } = require("./questionBank");
 
 const app = express();
@@ -22,54 +23,53 @@ const upload = multer({
 const qb = new QuestionBank();
 console.log(`Loaded ${qb.size()} questions`);
 
-/**
- * Call the Python RapidOCR service running on localhost:3002.
- */
-function callOCR(filepath) {
-  return new Promise((resolve, reject) => {
-    const body = JSON.stringify({ filepath });
-    const options = {
-      hostname: "127.0.0.1",
-      port: 3002,
-      path: "/ocr",
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Content-Length": Buffer.byteLength(body),
-      },
-    };
-    const req = http.request(options, (res) => {
-      let data = "";
-      res.on("data", (chunk) => {
-        data += chunk;
-      });
-      res.on("end", () => {
-        try {
-          resolve(JSON.parse(data));
-        } catch (e) {
-          reject(new Error("OCR service returned invalid JSON"));
-        }
-      });
+// Create a persistent Tesseract worker for Chinese (load from local lang-data)
+let ocrWorker = null;
+const langPath = path.join(__dirname, "lang-data");
+
+async function getOCRWorker() {
+  if (!ocrWorker) {
+    ocrWorker = await Tesseract.createWorker("chi_sim", 1, {
+      langPath,
+      logger: () => {},
     });
-    req.on("error", (err) =>
-      reject(new Error("OCR service unavailable: " + err.message))
-    );
-    req.write(body);
-    req.end();
+  }
+  return ocrWorker;
+}
+
+// Pre-initialize worker at startup (don't crash server if it fails)
+getOCRWorker()
+  .then(() => console.log("OCR engine ready"))
+  .catch((err) => {
+    console.error("OCR init failed, will retry on first request:", err.message);
+    ocrWorker = null;
   });
+
+/**
+ * Preprocess image for better OCR accuracy.
+ */
+async function preprocessImage(inputPath) {
+  const outputPath = inputPath + "_processed.png";
+  await sharp(inputPath)
+    .grayscale()
+    .normalize()
+    .sharpen({ sigma: 1.5 })
+    .png()
+    .toFile(outputPath);
+  return outputPath;
 }
 
 /**
  * Search OCR result lines for the answer text and return its bounding box.
  * Prefers shorter lines (answer options) over longer lines (question text).
  */
-function findAnswerBox(ocrResult, answerText) {
-  if (!answerText || !ocrResult.lines) return null;
+function findAnswerBox(ocrData, answerText) {
+  if (!answerText || !ocrData.lines) return null;
   const clean = answerText.replace(/\s+/g, "");
   if (!clean) return null;
 
   const candidates = [];
-  for (const line of ocrResult.lines) {
+  for (const line of ocrData.lines) {
     const lt = line.text.replace(/\s+/g, "");
     if (!lt) continue;
     if (lt.includes(clean)) {
@@ -86,7 +86,6 @@ function findAnswerBox(ocrResult, answerText) {
     }
   }
   if (!candidates.length) return null;
-  // Best score first, then prefer shorter lines (answer options, not question text)
   candidates.sort((a, b) => b.score - a.score || a.len - b.len);
   return candidates[0].bbox;
 }
@@ -106,15 +105,16 @@ app.post("/api/ocr", upload.single("image"), async (req, res) => {
   }
 
   const filepath = req.file.path;
+  let processedPath = null;
   try {
-    const ocrResult = await callOCR(filepath);
-    if (ocrResult.error) {
-      return res.status(500).json({ error: ocrResult.error });
-    }
+    processedPath = await preprocessImage(filepath);
 
-    const ocrText = (ocrResult.text || "").replace(/\s+/g, "");
+    const worker = await getOCRWorker();
+    const { data } = await worker.recognize(processedPath);
+    const ocrText = data.text.replace(/\s+/g, "");
+
     const match = qb.findMatch(ocrText);
-    const answerBox = match ? findAnswerBox(ocrResult, match.answer) : null;
+    const answerBox = match ? findAnswerBox(data, match.answer) : null;
     res.json({
       ocr_text: ocrText,
       match: match ? match.toJSON() : null,
@@ -125,6 +125,7 @@ app.post("/api/ocr", upload.single("image"), async (req, res) => {
     res.status(500).json({ error: "OCR failed" });
   } finally {
     fs.unlink(filepath, () => {});
+    if (processedPath) fs.unlink(processedPath, () => {});
   }
 });
 
