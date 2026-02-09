@@ -257,7 +257,29 @@ document.addEventListener("DOMContentLoaded", function () {
   function drawAnswerCircle(box, frameW, frameH) {
     var displayW = cameraVideo.clientWidth;
     var displayH = cameraVideo.clientHeight;
-    if (!displayW || !displayH) return;
+    if (!displayW || !displayH || !frameW || !frameH) return;
+
+    // Get actual video dimensions and aspect ratio
+    var videoRatio = cameraVideo.videoWidth / cameraVideo.videoHeight;
+    var displayRatio = displayW / displayH;
+    
+    var canvasW = displayW;
+    var canvasH = displayH;
+    var offsetX = 0;
+    var offsetY = 0;
+    
+    // Handle letterboxing/pillarboxing - calculate actual video area within display
+    if (videoRatio > displayRatio) {
+      // Video is wider than display - pillarboxing (black bars on sides)
+      canvasH = displayW / videoRatio;
+      canvasW = displayW;
+      offsetY = (displayH - canvasH) / 2;
+    } else {
+      // Video is taller than display - letterboxing (black bars on top/bottom)
+      canvasW = displayH * videoRatio;
+      canvasH = displayH;
+      offsetX = (displayW - canvasW) / 2;
+    }
 
     overlayCanvas.width = displayW;
     overlayCanvas.height = displayH;
@@ -265,22 +287,36 @@ document.addEventListener("DOMContentLoaded", function () {
     var ctx = overlayCanvas.getContext("2d");
     ctx.clearRect(0, 0, displayW, displayH);
 
-    // Map from captured frame coordinates to video display coordinates
-    var scaleX = displayW / frameW;
-    var scaleY = displayH / frameH;
+    // Map from captured frame coordinates to actual video display coordinates
+    var scaleX = canvasW / frameW;
+    var scaleY = canvasH / frameH;
 
-    var x0 = box.x0 * scaleX;
-    var y0 = box.y0 * scaleY;
-    var x1 = box.x1 * scaleX;
-    var y1 = box.y1 * scaleY;
+    var x0 = box.x0 * scaleX + offsetX;
+    var y0 = box.y0 * scaleY + offsetY;
+    var x1 = box.x1 * scaleX + offsetX;
+    var y1 = box.y1 * scaleY + offsetY;
 
     var cx = (x0 + x1) / 2;
     var cy = (y0 + y1) / 2;
-    var rx = (x1 - x0) / 2 + 14;
-    var ry = (y1 - y0) / 2 + 10;
+    
+    // Calculate ellipse size with minimum dimensions for visibility
+    var textWidth = Math.max(x1 - x0, 20);  // Minimum 20px width
+    var textHeight = Math.max(y1 - y0, 20); // Minimum 20px height
+    
+    var rx = textWidth / 2 + 8;   // Reduced padding for better accuracy
+    var ry = textHeight / 2 + 6;  // Reduced padding for better accuracy
 
     ctx.strokeStyle = "#ff0000";
     ctx.lineWidth = 3;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx, ry, 0, 0, 2 * Math.PI);
+    ctx.stroke();
+    
+    // Add a subtle glow effect for better visibility
+    ctx.strokeStyle = "rgba(255, 0, 0, 0.3)";
+    ctx.lineWidth = 8;
     ctx.beginPath();
     ctx.ellipse(cx, cy, rx, ry, 0, 0, 2 * Math.PI);
     ctx.stroke();

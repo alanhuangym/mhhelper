@@ -71,12 +71,13 @@ function findAnswerBox(ocrData, answerText) {
 
   let bestBox = null;
   let bestScore = 0;
+  let bestLine = null;
 
   for (const line of ocrData.lines) {
     const lt = line.text.replace(/\s+/g, "");
     if (!lt) continue;
 
-    // Exact substring match
+    // Exact substring match - highest priority
     if (lt.includes(clean)) {
       return line.bbox;
     }
@@ -90,16 +91,29 @@ function findAnswerBox(ocrData, answerText) {
 
     // Bonus for shorter lines (answer options are usually short)
     if (lt.length <= 8) score += 0.15;
+    // Bonus for lines that are mostly the answer (high hit ratio)
+    if (hits / lt.length > 0.7) score += 0.1;
 
     if (score > bestScore) {
       bestScore = score;
       bestBox = line.bbox;
+      bestLine = line;
     }
   }
 
-  if (bestScore >= 0.3) return bestBox;
+  if (bestScore >= 0.3 && bestBox) {
+    // Refine the bounding box to be more precise
+    // Expand slightly to ensure full character coverage
+    const refinedBox = {
+      x0: Math.max(0, bestBox.x0 - 2),
+      y0: Math.max(0, bestBox.y0 - 2),
+      x1: bestBox.x1 + 2,
+      y1: bestBox.y1 + 2
+    };
+    return refinedBox;
+  }
 
-  // Fallback: pick the shortest line in the bottom half of the image
+  // Fallback: pick the shortest line in the bottom third of the image
   // (quiz answer options are typically at the bottom and shorter than the question)
   let imgHeight = 0;
   for (const line of ocrData.lines) {
@@ -111,9 +125,15 @@ function findAnswerBox(ocrData, answerText) {
     const lt = line.text.replace(/\s+/g, "");
     if (!lt || !line.bbox) continue;
     const midY = (line.bbox.y0 + line.bbox.y1) / 2;
-    if (midY > imgHeight * 0.3 && lt.length < fallbackLen) {
+    // Focus on bottom third instead of bottom 70% for better accuracy
+    if (midY > imgHeight * 0.67 && lt.length < fallbackLen) {
       fallbackLen = lt.length;
-      fallback = line.bbox;
+      fallback = {
+        x0: Math.max(0, line.bbox.x0 - 2),
+        y0: Math.max(0, line.bbox.y0 - 2),
+        x1: line.bbox.x1 + 2,
+        y1: line.bbox.y1 + 2
+      };
     }
   }
   return fallback;
