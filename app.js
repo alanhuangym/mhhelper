@@ -2,11 +2,12 @@ const express = require("express");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
+const https = require("https");
 const Tesseract = require("tesseract.js");
 const { QuestionBank } = require("./questionBank");
 
 const app = express();
-const PORT = 5000;
+const PORT = 3000;
 
 // Ensure uploads dir exists
 const uploadDir = path.join(__dirname, "uploads");
@@ -40,7 +41,7 @@ async function getOCRWorker() {
 getOCRWorker()
   .then(() => console.log("OCR engine ready"))
   .catch((err) => {
-    console.error("OCR init failed, image recognition will retry on first request:", err.message);
+    console.error("OCR init failed, will retry on first request:", err.message);
     ocrWorker = null;
   });
 
@@ -94,6 +95,24 @@ app.post("/api/search", (req, res) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
-});
+// Start HTTPS (required for camera on iOS Safari) + HTTP fallback
+const certDir = path.join(__dirname, "certs");
+const certFile = path.join(certDir, "server.crt");
+const keyFile = path.join(certDir, "server.key");
+
+if (fs.existsSync(certFile) && fs.existsSync(keyFile)) {
+  const httpsOptions = {
+    key: fs.readFileSync(keyFile),
+    cert: fs.readFileSync(certFile),
+  };
+  https.createServer(httpsOptions, app).listen(PORT, () => {
+    console.log(`HTTPS server running at https://0.0.0.0:${PORT}`);
+  });
+} else {
+  console.log("No SSL certs found in certs/ directory, starting HTTP only.");
+  console.log("Camera will NOT work on iOS Safari without HTTPS.");
+  console.log("Run: npm run gen-cert  to generate self-signed certs.");
+  app.listen(PORT, () => {
+    console.log(`HTTP server running at http://0.0.0.0:${PORT}`);
+  });
+}

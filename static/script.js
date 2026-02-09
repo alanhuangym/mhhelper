@@ -1,49 +1,52 @@
 document.addEventListener("DOMContentLoaded", function () {
   // Elements
-  const tabs = document.querySelectorAll(".tab");
-  const panels = document.querySelectorAll(".panel");
-  const dropZone = document.getElementById("dropZone");
-  const fileInput = document.getElementById("fileInput");
-  const previewArea = document.getElementById("previewArea");
-  const previewImg = document.getElementById("previewImg");
-  const btnClearImg = document.getElementById("btnClearImg");
-  const btnUpload = document.getElementById("btnUpload");
-  const btnStartCamera = document.getElementById("btnStartCamera");
-  const btnCapture = document.getElementById("btnCapture");
-  const cameraVideo = document.getElementById("cameraVideo");
-  const cameraCanvas = document.getElementById("cameraCanvas");
-  const textInput = document.getElementById("textInput");
-  const btnSearch = document.getElementById("btnSearch");
-  const loading = document.getElementById("loading");
-  const resultArea = document.getElementById("resultArea");
-  const mainResult = document.getElementById("mainResult");
-  const ocrTextBox = document.getElementById("ocrTextBox");
-  const searchResults = document.getElementById("searchResults");
-  const noResult = document.getElementById("noResult");
+  var tabs = document.querySelectorAll(".tab");
+  var panels = document.querySelectorAll(".panel");
+  var dropZone = document.getElementById("dropZone");
+  var fileInput = document.getElementById("fileInput");
+  var previewArea = document.getElementById("previewArea");
+  var previewImg = document.getElementById("previewImg");
+  var btnClearImg = document.getElementById("btnClearImg");
+  var btnUpload = document.getElementById("btnUpload");
+  var btnToggleCamera = document.getElementById("btnToggleCamera");
+  var cameraVideo = document.getElementById("cameraVideo");
+  var cameraCanvas = document.getElementById("cameraCanvas");
+  var cameraPlaceholder = document.getElementById("cameraPlaceholder");
+  var cameraStatus = document.getElementById("cameraStatus");
+  var liveResult = document.getElementById("liveResult");
+  var liveAnswer = document.getElementById("liveAnswer");
+  var liveDetail = document.getElementById("liveDetail");
+  var textInput = document.getElementById("textInput");
+  var btnSearch = document.getElementById("btnSearch");
+  var loading = document.getElementById("loading");
+  var resultArea = document.getElementById("resultArea");
+  var mainResult = document.getElementById("mainResult");
+  var ocrTextBox = document.getElementById("ocrTextBox");
+  var searchResults = document.getElementById("searchResults");
+  var noResult = document.getElementById("noResult");
 
-  let selectedFile = null;
-  let cameraStream = null;
+  var selectedFile = null;
+  var cameraStream = null;
+  var scanTimer = null;
+  var scanning = false;
 
   // ---- Tab switching ----
   tabs.forEach(function (tab) {
     tab.addEventListener("click", function () {
-      const target = tab.dataset.tab;
+      var target = tab.dataset.tab;
       tabs.forEach(function (t) { t.classList.remove("active"); });
       tab.classList.add("active");
       panels.forEach(function (p) { p.classList.remove("active"); });
       document.getElementById("panel-" + target).classList.add("active");
 
-      // Stop camera when switching away
-      if (target !== "camera" && cameraStream) {
+      if (target !== "camera") {
         stopCamera();
       }
     });
   });
 
   // ---- Image Upload ----
-  dropZone.addEventListener("click", function () {
-    fileInput.click();
-  });
+  dropZone.addEventListener("click", function () { fileInput.click(); });
 
   dropZone.addEventListener("dragover", function (e) {
     e.preventDefault();
@@ -57,22 +60,15 @@ document.addEventListener("DOMContentLoaded", function () {
   dropZone.addEventListener("drop", function (e) {
     e.preventDefault();
     dropZone.classList.remove("drag-over");
-    if (e.dataTransfer.files.length > 0) {
-      handleFile(e.dataTransfer.files[0]);
-    }
+    if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
   });
 
   fileInput.addEventListener("change", function () {
-    if (fileInput.files.length > 0) {
-      handleFile(fileInput.files[0]);
-    }
+    if (fileInput.files.length > 0) handleFile(fileInput.files[0]);
   });
 
   function handleFile(file) {
-    if (!file.type.startsWith("image/")) {
-      alert("Please select an image file");
-      return;
-    }
+    if (!file.type.startsWith("image/")) return;
     selectedFile = file;
     var reader = new FileReader();
     reader.onload = function (e) {
@@ -98,20 +94,14 @@ document.addEventListener("DOMContentLoaded", function () {
     var formData = new FormData();
     formData.append("image", selectedFile);
     showLoading();
-    fetch("/api/ocr", {
-      method: "POST",
-      body: formData,
-    })
+    fetch("/api/ocr", { method: "POST", body: formData })
       .then(function (r) { return r.json(); })
       .then(function (data) { showResults(data); })
-      .catch(function (err) {
-        hideLoading();
-        alert("Recognition failed: " + err.message);
-      });
+      .catch(function (err) { hideLoading(); alert("识别失败: " + err.message); });
   });
 
-  // ---- Camera ----
-  btnStartCamera.addEventListener("click", function () {
+  // ---- Camera (real-time) ----
+  btnToggleCamera.addEventListener("click", function () {
     if (cameraStream) {
       stopCamera();
     } else {
@@ -120,61 +110,106 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   function startCamera() {
-    navigator.mediaDevices
-      .getUserMedia({ video: { facingMode: "environment" }, audio: false })
-      .then(function (stream) {
-        cameraStream = stream;
-        cameraVideo.srcObject = stream;
-        btnStartCamera.textContent = "Close camera";
-        btnCapture.disabled = false;
-      })
-      .catch(function (err) {
-        alert("Cannot access camera: " + err.message);
-      });
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      cameraStatus.textContent = "浏览器不支持摄像头，请使用 HTTPS 访问";
+      return;
+    }
+    cameraStatus.textContent = "正在开启摄像头...";
+
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false
+    })
+    .then(function (stream) {
+      cameraStream = stream;
+      cameraVideo.srcObject = stream;
+      cameraVideo.style.display = "block";
+      cameraPlaceholder.style.display = "none";
+      btnToggleCamera.textContent = "关闭摄像头";
+      cameraStatus.textContent = "实时识别中...";
+      startScanning();
+    })
+    .catch(function (err) {
+      cameraStatus.textContent = "无法打开摄像头: " + err.message;
+      if (err.name === "NotAllowedError" || err.name === "SecurityError") {
+        cameraStatus.textContent = "需要 HTTPS 才能使用摄像头，请用 https:// 访问";
+      }
+    });
   }
 
   function stopCamera() {
+    stopScanning();
     if (cameraStream) {
       cameraStream.getTracks().forEach(function (t) { t.stop(); });
       cameraStream = null;
     }
     cameraVideo.srcObject = null;
-    btnStartCamera.textContent = "Open camera";
-    btnCapture.disabled = true;
+    cameraVideo.style.display = "none";
+    cameraPlaceholder.style.display = "block";
+    btnToggleCamera.textContent = "开启摄像头";
+    cameraStatus.textContent = "未开启";
+    liveResult.style.display = "none";
   }
 
-  btnCapture.addEventListener("click", function () {
-    if (!cameraStream) return;
+  function startScanning() {
+    if (scanTimer) return;
+    scanTimer = setInterval(captureAndRecognize, 1500);
+  }
+
+  function stopScanning() {
+    if (scanTimer) {
+      clearInterval(scanTimer);
+      scanTimer = null;
+    }
+    scanning = false;
+  }
+
+  function captureAndRecognize() {
+    if (!cameraStream || scanning) return;
+    scanning = true;
+
     var w = cameraVideo.videoWidth;
     var h = cameraVideo.videoHeight;
+    if (w === 0 || h === 0) { scanning = false; return; }
+
     cameraCanvas.width = w;
     cameraCanvas.height = h;
     var ctx = cameraCanvas.getContext("2d");
     ctx.drawImage(cameraVideo, 0, 0, w, h);
+
     cameraCanvas.toBlob(function (blob) {
+      if (!blob) { scanning = false; return; }
       var formData = new FormData();
-      formData.append("image", blob, "capture.jpg");
-      showLoading();
-      fetch("/api/ocr", {
-        method: "POST",
-        body: formData,
-      })
+      formData.append("image", blob, "frame.jpg");
+
+      cameraStatus.textContent = "正在识别...";
+
+      fetch("/api/ocr", { method: "POST", body: formData })
         .then(function (r) { return r.json(); })
-        .then(function (data) { showResults(data); })
-        .catch(function (err) {
-          hideLoading();
-          alert("Recognition failed: " + err.message);
+        .then(function (data) {
+          if (data.match) {
+            liveAnswer.textContent = data.match.answer;
+            liveDetail.textContent = data.match.question + " (" + data.match.similarity + "%)";
+            liveResult.style.display = "block";
+            cameraStatus.textContent = "已匹配 - 实时识别中...";
+          } else {
+            liveResult.style.display = "none";
+            cameraStatus.textContent = "未匹配 - 实时识别中...";
+          }
+        })
+        .catch(function () {
+          cameraStatus.textContent = "识别出错 - 重试中...";
+        })
+        .finally(function () {
+          scanning = false;
         });
-    }, "image/jpeg", 0.9);
-  });
+    }, "image/jpeg", 0.85);
+  }
 
   // ---- Text Search ----
   btnSearch.addEventListener("click", function () {
     var text = textInput.value.trim();
-    if (!text) {
-      alert("Please enter question text");
-      return;
-    }
+    if (!text) return;
     showLoading();
     fetch("/api/search", {
       method: "POST",
@@ -183,28 +218,16 @@ document.addEventListener("DOMContentLoaded", function () {
     })
       .then(function (r) { return r.json(); })
       .then(function (data) { showResults(data); })
-      .catch(function (err) {
-        hideLoading();
-        alert("Search failed: " + err.message);
-      });
+      .catch(function (err) { hideLoading(); alert("搜索失败: " + err.message); });
   });
 
   textInput.addEventListener("keydown", function (e) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      btnSearch.click();
-    }
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); btnSearch.click(); }
   });
 
   // ---- Results ----
-  function showLoading() {
-    loading.style.display = "block";
-    resultArea.style.display = "none";
-  }
-
-  function hideLoading() {
-    loading.style.display = "none";
-  }
+  function showLoading() { loading.style.display = "block"; resultArea.style.display = "none"; }
+  function hideLoading() { loading.style.display = "none"; }
 
   function hideResults() {
     resultArea.style.display = "none";
@@ -218,33 +241,24 @@ document.addEventListener("DOMContentLoaded", function () {
     hideLoading();
     hideResults();
     resultArea.style.display = "block";
-
     var hasResult = false;
 
-    // Show OCR text if available
     if (data.ocr_text) {
       document.getElementById("ocrTextContent").textContent = data.ocr_text;
       ocrTextBox.style.display = "block";
     }
 
-    // Show main match
     if (data.match) {
       hasResult = true;
       document.getElementById("resultQuestion").textContent = data.match.question;
       document.getElementById("resultAnswer").textContent = data.match.answer;
       var expEl = document.getElementById("resultExplanation");
-      if (data.match.explanation) {
-        expEl.textContent = data.match.explanation;
-        expEl.style.display = "block";
-      } else {
-        expEl.style.display = "none";
-      }
-      document.getElementById("resultSimilarity").innerHTML =
-        "Match: <span>" + data.match.similarity + "%</span>";
+      if (data.match.explanation) { expEl.textContent = data.match.explanation; expEl.style.display = "block"; }
+      else { expEl.style.display = "none"; }
+      document.getElementById("resultSimilarity").innerHTML = "匹配度: <span>" + data.match.similarity + "%</span>";
       mainResult.style.display = "block";
     }
 
-    // Show search results
     if (data.search_results && data.search_results.length > 0) {
       hasResult = true;
       var list = document.getElementById("searchResultsList");
@@ -253,23 +267,21 @@ document.addEventListener("DOMContentLoaded", function () {
         var div = document.createElement("div");
         div.className = "search-item";
         div.innerHTML =
-          '<div class="q">' + escapeHtml(r.question) + "</div>" +
-          '<div class="a">' + escapeHtml(r.answer) + "</div>" +
-          (r.explanation ? '<div class="e">' + escapeHtml(r.explanation) + "</div>" : "") +
-          '<div class="s">Match: ' + r.similarity + "%</div>";
+          '<div class="q">' + esc(r.question) + "</div>" +
+          '<div class="a">' + esc(r.answer) + "</div>" +
+          (r.explanation ? '<div class="e">' + esc(r.explanation) + "</div>" : "") +
+          '<div class="s">匹配度: ' + r.similarity + "%</div>";
         list.appendChild(div);
       });
       searchResults.style.display = "block";
     }
 
-    if (!hasResult) {
-      noResult.style.display = "block";
-    }
+    if (!hasResult) noResult.style.display = "block";
   }
 
-  function escapeHtml(text) {
-    var div = document.createElement("div");
-    div.appendChild(document.createTextNode(text));
-    return div.innerHTML;
+  function esc(t) {
+    var d = document.createElement("div");
+    d.appendChild(document.createTextNode(t));
+    return d.innerHTML;
   }
 });

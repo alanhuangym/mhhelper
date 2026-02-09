@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>梦幻答题助手</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
@@ -16,7 +16,7 @@
         <!-- Tab Switcher -->
         <div class="tabs">
             <button class="tab active" data-tab="upload">图片识别</button>
-            <button class="tab" data-tab="camera">拍照识别</button>
+            <button class="tab" data-tab="camera">实时识别</button>
             <button class="tab" data-tab="text">文字搜索</button>
         </div>
 
@@ -35,16 +35,25 @@
             <button class="btn btn-primary" id="btnUpload" disabled>开始识别</button>
         </div>
 
-        <!-- Camera Panel -->
+        <!-- Camera Panel (real-time) -->
         <div class="panel" id="panel-camera">
-            <div class="camera-box">
-                <video id="cameraVideo" autoplay playsinline></video>
-                <canvas id="cameraCanvas" style="display:none;"></canvas>
+            <div class="camera-wrapper">
+                <div class="camera-box">
+                    <video id="cameraVideo" autoplay playsinline muted></video>
+                    <canvas id="cameraCanvas" style="display:none;"></canvas>
+                    <div class="camera-placeholder" id="cameraPlaceholder">
+                        <p>点击下方按钮开启摄像头</p>
+                        <p class="hint">需要 HTTPS 环境</p>
+                    </div>
+                </div>
+                <!-- Live result overlay on camera -->
+                <div class="live-result" id="liveResult" style="display:none;">
+                    <div class="live-answer" id="liveAnswer"></div>
+                    <div class="live-detail" id="liveDetail"></div>
+                </div>
             </div>
-            <div class="camera-controls">
-                <button class="btn btn-primary" id="btnCapture" disabled>拍照识别</button>
-                <button class="btn btn-secondary" id="btnStartCamera">开启摄像头</button>
-            </div>
+            <div class="camera-status" id="cameraStatus">未开启</div>
+            <button class="btn btn-primary" id="btnToggleCamera">开启摄像头</button>
         </div>
 
         <!-- Text Search Panel -->
@@ -53,13 +62,13 @@
             <button class="btn btn-primary" id="btnSearch">搜索答案</button>
         </div>
 
-        <!-- Loading -->
+        <!-- Loading (for upload/search) -->
         <div class="loading" id="loading" style="display:none;">
             <div class="spinner"></div>
             <p>正在识别中...</p>
         </div>
 
-        <!-- Result Area -->
+        <!-- Result Area (for upload/search) -->
         <div class="result-area" id="resultArea" style="display:none;">
             <div class="result-card main-result" id="mainResult" style="display:none;">
                 <div class="result-label">最佳匹配</div>
