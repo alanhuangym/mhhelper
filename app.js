@@ -22,12 +22,14 @@ const upload = multer({
 const qb = new QuestionBank();
 console.log(`Loaded ${qb.size()} questions`);
 
-// Create a persistent Tesseract worker for Chinese
+// Create a persistent Tesseract worker for Chinese (load from local lang-data)
 let ocrWorker = null;
+const langPath = path.join(__dirname, "lang-data");
 
 async function getOCRWorker() {
   if (!ocrWorker) {
     ocrWorker = await Tesseract.createWorker("chi_sim", 1, {
+      langPath,
       logger: () => {},
     });
   }
