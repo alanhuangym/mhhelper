@@ -2,7 +2,6 @@ const express = require("express");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
-const https = require("https");
 const Tesseract = require("tesseract.js");
 const { QuestionBank } = require("./questionBank");
 
@@ -95,21 +94,6 @@ app.post("/api/search", (req, res) => {
   });
 });
 
-// Start server on port 3000 — use HTTPS if certs exist, otherwise HTTP
-const certDir = path.join(__dirname, "certs");
-const certFile = path.join(certDir, "server.crt");
-const keyFile = path.join(certDir, "server.key");
-
-if (fs.existsSync(certFile) && fs.existsSync(keyFile)) {
-  https.createServer({
-    key: fs.readFileSync(keyFile),
-    cert: fs.readFileSync(certFile),
-  }, app).listen(PORT, () => {
-    console.log(`HTTPS server running at https://0.0.0.0:${PORT}`);
-  });
-} else {
-  app.listen(PORT, () => {
-    console.log(`HTTP server running at http://0.0.0.0:${PORT}`);
-    console.log("No SSL certs found. Run: npm run gen-cert  then restart for HTTPS.");
-  });
-}
+app.listen(PORT, () => {
+  console.log(`Server running at http://0.0.0.0:${PORT}`);
+});

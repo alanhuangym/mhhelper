@@ -16,7 +16,7 @@
         <!-- Tab Switcher -->
         <div class="tabs">
             <button class="tab active" data-tab="upload">图片识别</button>
-            <button class="tab" data-tab="camera">实时识别</button>
+            <button class="tab" data-tab="camera">拍照识别</button>
             <button class="tab" data-tab="text">文字搜索</button>
         </div>
 
@@ -35,25 +35,23 @@
             <button class="btn btn-primary" id="btnUpload" disabled>开始识别</button>
         </div>
 
-        <!-- Camera Panel (real-time) -->
+        <!-- Camera Panel — native capture, no HTTPS needed -->
         <div class="panel" id="panel-camera">
-            <div class="camera-wrapper">
-                <div class="camera-box">
-                    <video id="cameraVideo" autoplay playsinline muted></video>
-                    <canvas id="cameraCanvas" style="display:none;"></canvas>
-                    <div class="camera-placeholder" id="cameraPlaceholder">
-                        <p>点击下方按钮开启摄像头</p>
-                        <p class="hint">需要 HTTPS 环境</p>
-                    </div>
-                </div>
-                <!-- Live result overlay on camera -->
-                <div class="live-result" id="liveResult" style="display:none;">
-                    <div class="live-answer" id="liveAnswer"></div>
-                    <div class="live-detail" id="liveDetail"></div>
-                </div>
+            <div class="snap-zone" id="snapZone">
+                <div class="snap-icon">📷</div>
+                <p>点击拍照识别题目</p>
+                <p class="hint">直接调起相机，拍完自动识别</p>
+                <input type="file" id="cameraInput" accept="image/*" capture="environment" hidden>
             </div>
-            <div class="camera-status" id="cameraStatus">未开启</div>
-            <button class="btn btn-primary" id="btnToggleCamera">开启摄像头</button>
+            <!-- Result shown right here -->
+            <div class="snap-result" id="snapResult" style="display:none;">
+                <div class="snap-answer" id="snapAnswer"></div>
+                <div class="snap-question" id="snapQuestion"></div>
+                <div class="snap-explanation" id="snapExplanation"></div>
+                <div class="snap-similarity" id="snapSimilarity"></div>
+            </div>
+            <div class="snap-status" id="snapStatus"></div>
+            <button class="btn btn-primary" id="btnSnap">拍照识别</button>
         </div>
 
         <!-- Text Search Panel -->
