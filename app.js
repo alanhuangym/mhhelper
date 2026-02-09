@@ -95,7 +95,13 @@ app.post("/api/search", (req, res) => {
   });
 });
 
-// Start HTTPS (required for camera on iOS Safari) + HTTP fallback
+// Always start HTTP
+app.listen(PORT, () => {
+  console.log(`HTTP server running at http://0.0.0.0:${PORT}`);
+});
+
+// Also start HTTPS if certs exist (required for camera on iOS Safari)
+const HTTPS_PORT = PORT + 1;
 const certDir = path.join(__dirname, "certs");
 const certFile = path.join(certDir, "server.crt");
 const keyFile = path.join(certDir, "server.key");
@@ -105,14 +111,10 @@ if (fs.existsSync(certFile) && fs.existsSync(keyFile)) {
     key: fs.readFileSync(keyFile),
     cert: fs.readFileSync(certFile),
   };
-  https.createServer(httpsOptions, app).listen(PORT, () => {
-    console.log(`HTTPS server running at https://0.0.0.0:${PORT}`);
+  https.createServer(httpsOptions, app).listen(HTTPS_PORT, () => {
+    console.log(`HTTPS server running at https://0.0.0.0:${HTTPS_PORT}`);
   });
 } else {
-  console.log("No SSL certs found in certs/ directory, starting HTTP only.");
-  console.log("Camera will NOT work on iOS Safari without HTTPS.");
-  console.log("Run: npm run gen-cert  to generate self-signed certs.");
-  app.listen(PORT, () => {
-    console.log(`HTTP server running at http://0.0.0.0:${PORT}`);
-  });
+  console.log("No SSL certs found. Run: npm run gen-cert");
+  console.log("Then restart to enable HTTPS (for iOS camera).");
 }
