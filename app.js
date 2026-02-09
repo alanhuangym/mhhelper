@@ -63,6 +63,38 @@ async function preprocessImage(inputPath) {
   return outputPath;
 }
 
+/**
+ * Search OCR result lines for the answer text and return its bounding box.
+ * Prefers shorter lines (answer options) over longer lines (question text).
+ */
+function findAnswerBox(ocrData, answerText) {
+  if (!answerText || !ocrData.lines) return null;
+  const clean = answerText.replace(/\s+/g, "");
+  if (!clean) return null;
+
+  const candidates = [];
+  for (const line of ocrData.lines) {
+    const lt = line.text.replace(/\s+/g, "");
+    if (!lt) continue;
+    if (lt.includes(clean)) {
+      candidates.push({ bbox: line.bbox, score: 1, len: lt.length });
+      continue;
+    }
+    let hits = 0;
+    for (const c of clean) {
+      if (lt.includes(c)) hits++;
+    }
+    const score = hits / clean.length;
+    if (score >= 0.6) {
+      candidates.push({ bbox: line.bbox, score, len: lt.length });
+    }
+  }
+  if (!candidates.length) return null;
+  // Best score first, then prefer shorter lines (answer options, not question text)
+  candidates.sort((a, b) => b.score - a.score || a.len - b.len);
+  return candidates[0].bbox;
+}
+
 // Middleware
 app.use(express.json());
 app.use("/static", express.static(path.join(__dirname, "static")));
@@ -88,9 +120,11 @@ app.post("/api/ocr", upload.single("image"), async (req, res) => {
     const ocrText = data.text.replace(/\s+/g, "");
 
     const match = qb.findMatch(ocrText);
+    const answerBox = match ? findAnswerBox(data, match.answer) : null;
     res.json({
       ocr_text: ocrText,
       match: match ? match.toJSON() : null,
+      answer_box: answerBox,
     });
   } catch (err) {
     console.error("OCR error:", err);

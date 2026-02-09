@@ -24,10 +24,11 @@ header h1 { font-size: 24px; color: #ff6b6b; letter-spacing: 2px; }
 /* Camera */
 .camera-wrapper { position: relative; border-radius: 12px; overflow: hidden; background: #000; min-height: 200px; }
 .camera-wrapper video { width: 100%; display: block; }
+#overlayCanvas { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1; }
 
 .live-result {
     position: absolute; bottom: 0; left: 0; right: 0;
-    background: rgba(0,0,0,0.88); padding: 14px 16px;
+    background: rgba(0,0,0,0.88); padding: 14px 16px; z-index: 2;
 }
 .live-answer { font-size: 30px; font-weight: 700; color: #ff6b6b; line-height: 1.3; }
 .live-question { font-size: 13px; color: #aaa; margin-top: 6px; }

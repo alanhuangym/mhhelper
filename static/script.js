@@ -6,6 +6,7 @@ document.addEventListener("DOMContentLoaded", function () {
   // Camera
   var cameraVideo = document.getElementById("cameraVideo");
   var cameraCanvas = document.getElementById("cameraCanvas");
+  var overlayCanvas = document.getElementById("overlayCanvas");
   var liveResult = document.getElementById("liveResult");
   var liveAnswer = document.getElementById("liveAnswer");
   var liveQuestion = document.getElementById("liveQuestion");
@@ -84,6 +85,7 @@ document.addEventListener("DOMContentLoaded", function () {
     btnToggleCamera.textContent = "开启摄像头";
     cameraStatus.textContent = "已关闭";
     liveResult.style.display = "none";
+    clearOverlay();
   }
 
   function startScanning() {
@@ -124,6 +126,11 @@ document.addEventListener("DOMContentLoaded", function () {
             liveQuestion.textContent = data.match.question + "  (" + data.match.similarity + "%)";
             liveResult.style.display = "block";
             cameraStatus.textContent = "已匹配 · 持续识别中...";
+            if (data.answer_box) {
+              drawAnswerCircle(data.answer_box, w, h);
+            } else {
+              clearOverlay();
+            }
           } else {
             // Keep previous answer displayed, don't hide it
             cameraStatus.textContent = "持续识别中...";
@@ -245,4 +252,42 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function esc(t) { var d = document.createElement("div"); d.appendChild(document.createTextNode(t)); return d.innerHTML; }
+
+  // ===================== OVERLAY (red circle on answer) =====================
+  function drawAnswerCircle(box, frameW, frameH) {
+    var displayW = cameraVideo.clientWidth;
+    var displayH = cameraVideo.clientHeight;
+    if (!displayW || !displayH) return;
+
+    overlayCanvas.width = displayW;
+    overlayCanvas.height = displayH;
+
+    var ctx = overlayCanvas.getContext("2d");
+    ctx.clearRect(0, 0, displayW, displayH);
+
+    // Map from captured frame coordinates to video display coordinates
+    var scaleX = displayW / frameW;
+    var scaleY = displayH / frameH;
+
+    var x0 = box.x0 * scaleX;
+    var y0 = box.y0 * scaleY;
+    var x1 = box.x1 * scaleX;
+    var y1 = box.y1 * scaleY;
+
+    var cx = (x0 + x1) / 2;
+    var cy = (y0 + y1) / 2;
+    var rx = (x1 - x0) / 2 + 14;
+    var ry = (y1 - y0) / 2 + 10;
+
+    ctx.strokeStyle = "#ff0000";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx, ry, 0, 0, 2 * Math.PI);
+    ctx.stroke();
+  }
+
+  function clearOverlay() {
+    var ctx = overlayCanvas.getContext("2d");
+    ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+  }
 });
