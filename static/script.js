@@ -90,7 +90,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function startScanning() {
     if (scanTimer) return;
-    scanTimer = setInterval(captureFrame, 500);
+    scanTimer = setInterval(captureFrame, 300); // 从500ms减少到300ms，提高响应速度
   }
 
   function stopScanning() {
