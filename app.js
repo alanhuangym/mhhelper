@@ -6,7 +6,7 @@ const Tesseract = require("tesseract.js");
 const { QuestionBank } = require("./questionBank");
 
 const app = express();
-const PORT = 3000;
+const PORT = 5000;
 
 // Ensure uploads dir exists
 const uploadDir = path.join(__dirname, "uploads");
@@ -36,8 +36,13 @@ async function getOCRWorker() {
   return ocrWorker;
 }
 
-// Pre-initialize worker at startup
-getOCRWorker().then(() => console.log("OCR engine ready"));
+// Pre-initialize worker at startup (don't crash server if it fails)
+getOCRWorker()
+  .then(() => console.log("OCR engine ready"))
+  .catch((err) => {
+    console.error("OCR init failed, image recognition will retry on first request:", err.message);
+    ocrWorker = null;
+  });
 
 // Middleware
 app.use(express.json());
