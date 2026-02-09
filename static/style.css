@@ -1,0 +1,388 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+        "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    background: #0f1923;
+    color: #e0e0e0;
+    min-height: 100vh;
+}
+
+.container {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 20px 16px 40px;
+}
+
+/* Header */
+header {
+    text-align: center;
+    padding: 24px 0 16px;
+}
+
+header h1 {
+    font-size: 28px;
+    color: #ff6b6b;
+    letter-spacing: 2px;
+}
+
+.subtitle {
+    color: #888;
+    font-size: 14px;
+    margin-top: 8px;
+}
+
+/* Tabs */
+.tabs {
+    display: flex;
+    gap: 0;
+    margin: 20px 0;
+    background: #1a2634;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.tab {
+    flex: 1;
+    padding: 12px 0;
+    border: none;
+    background: transparent;
+    color: #888;
+    font-size: 15px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.tab.active {
+    background: #ff6b6b;
+    color: #fff;
+    font-weight: 600;
+}
+
+.tab:hover:not(.active) {
+    color: #ccc;
+    background: #243447;
+}
+
+/* Panels */
+.panel {
+    display: none;
+    margin-bottom: 20px;
+}
+
+.panel.active {
+    display: block;
+}
+
+/* Drop Zone */
+.drop-zone {
+    border: 2px dashed #3a4a5c;
+    border-radius: 12px;
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s;
+    background: #1a2634;
+}
+
+.drop-zone:hover,
+.drop-zone.drag-over {
+    border-color: #ff6b6b;
+    background: #1e2e3e;
+}
+
+.drop-zone-icon {
+    font-size: 48px;
+    color: #ff6b6b;
+    margin-bottom: 12px;
+    line-height: 1;
+}
+
+.drop-zone p {
+    color: #aaa;
+    font-size: 15px;
+}
+
+.drop-zone .hint {
+    font-size: 12px;
+    color: #666;
+    margin-top: 4px;
+}
+
+/* Preview */
+.preview-area {
+    text-align: center;
+    margin-bottom: 12px;
+}
+
+.preview-area img {
+    max-width: 100%;
+    max-height: 300px;
+    border-radius: 8px;
+    border: 1px solid #3a4a5c;
+}
+
+.preview-area button {
+    margin-top: 10px;
+}
+
+/* Camera */
+.camera-box {
+    background: #000;
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 12px;
+    min-height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.camera-box video {
+    width: 100%;
+    display: block;
+}
+
+.camera-controls {
+    display: flex;
+    gap: 10px;
+}
+
+/* Text Input */
+textarea {
+    width: 100%;
+    padding: 14px;
+    border: 2px solid #3a4a5c;
+    border-radius: 10px;
+    background: #1a2634;
+    color: #e0e0e0;
+    font-size: 16px;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.3s;
+    margin-bottom: 12px;
+    font-family: inherit;
+}
+
+textarea:focus {
+    border-color: #ff6b6b;
+}
+
+textarea::placeholder {
+    color: #666;
+}
+
+/* Buttons */
+.btn {
+    display: inline-block;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    width: 100%;
+    text-align: center;
+}
+
+.btn-primary {
+    background: #ff6b6b;
+    color: #fff;
+}
+
+.btn-primary:hover:not(:disabled) {
+    background: #ff5252;
+    transform: translateY(-1px);
+}
+
+.btn-primary:disabled {
+    background: #553333;
+    color: #888;
+    cursor: not-allowed;
+}
+
+.btn-secondary {
+    background: #2a3a4c;
+    color: #ccc;
+    width: auto;
+}
+
+.btn-secondary:hover {
+    background: #3a4a5c;
+}
+
+.camera-controls .btn {
+    flex: 1;
+}
+
+/* Loading */
+.loading {
+    text-align: center;
+    padding: 40px;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #3a4a5c;
+    border-top-color: #ff6b6b;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 12px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.loading p {
+    color: #aaa;
+    font-size: 15px;
+}
+
+/* Results */
+.result-area {
+    margin-top: 20px;
+}
+
+.result-label {
+    font-size: 12px;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #2a3a4c;
+}
+
+.result-card {
+    background: #1a2634;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+}
+
+.main-result {
+    border: 2px solid #ff6b6b;
+}
+
+.result-question {
+    color: #ccc;
+    font-size: 15px;
+    margin-bottom: 14px;
+    line-height: 1.6;
+}
+
+.result-answer {
+    font-size: 28px;
+    font-weight: 700;
+    color: #ff6b6b;
+    margin-bottom: 12px;
+    line-height: 1.4;
+}
+
+.result-explanation {
+    color: #aaa;
+    font-size: 14px;
+    line-height: 1.6;
+    margin-bottom: 10px;
+}
+
+.result-similarity {
+    font-size: 13px;
+    color: #666;
+}
+
+.result-similarity span {
+    color: #ff6b6b;
+    font-weight: 600;
+}
+
+/* OCR Text Box */
+.ocr-text-box {
+    background: #1a2634;
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 16px;
+}
+
+.ocr-text-box p {
+    color: #aaa;
+    font-size: 14px;
+    line-height: 1.6;
+    word-break: break-all;
+}
+
+/* Search Results */
+.search-results {
+    margin-bottom: 16px;
+}
+
+.search-item {
+    background: #1a2634;
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 10px;
+    cursor: default;
+    transition: background 0.2s;
+}
+
+.search-item:hover {
+    background: #1e2e3e;
+}
+
+.search-item .q {
+    color: #ccc;
+    font-size: 14px;
+    margin-bottom: 8px;
+}
+
+.search-item .a {
+    color: #ff6b6b;
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 6px;
+}
+
+.search-item .e {
+    color: #888;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.search-item .s {
+    color: #555;
+    font-size: 12px;
+    margin-top: 6px;
+}
+
+/* No Result */
+.no-result {
+    text-align: center;
+    padding: 30px;
+    background: #1a2634;
+    border-radius: 12px;
+}
+
+.no-result p {
+    color: #888;
+    font-size: 15px;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+    .container {
+        padding: 12px 10px 30px;
+    }
+    header h1 {
+        font-size: 24px;
+    }
+    .result-answer {
+        font-size: 24px;
+    }
+}
