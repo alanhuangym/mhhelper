@@ -133,11 +133,12 @@ document.addEventListener("DOMContentLoaded", function () {
             }
             liveResult.style.display = "block";
             cameraStatus.textContent = "已匹配 · 持续识别中...";
-            if (data.answer_box) {
-              drawAnswerCircle(data.answer_box, w, h);
-            } else {
-              clearOverlay();
-            }
+            // 暂时禁用画圈功能
+            // if (data.answer_box) {
+            //   drawAnswerCircle(data.answer_box, w, h);
+            // } else {
+            //   clearOverlay();
+            // }
           } else {
             // Keep previous answer displayed, don't hide it
             cameraStatus.textContent = "持续识别中...";
