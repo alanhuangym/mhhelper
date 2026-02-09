@@ -1,63 +1,148 @@
 document.addEventListener("DOMContentLoaded", function () {
+  // --- Elements ---
   var tabs = document.querySelectorAll(".tab");
   var panels = document.querySelectorAll(".panel");
+
+  // Camera
+  var cameraVideo = document.getElementById("cameraVideo");
+  var cameraCanvas = document.getElementById("cameraCanvas");
+  var liveResult = document.getElementById("liveResult");
+  var liveAnswer = document.getElementById("liveAnswer");
+  var liveQuestion = document.getElementById("liveQuestion");
+  var cameraStatus = document.getElementById("cameraStatus");
+  var btnToggleCamera = document.getElementById("btnToggleCamera");
+
+  // Upload
   var dropZone = document.getElementById("dropZone");
   var fileInput = document.getElementById("fileInput");
   var previewArea = document.getElementById("previewArea");
   var previewImg = document.getElementById("previewImg");
   var btnClearImg = document.getElementById("btnClearImg");
   var btnUpload = document.getElementById("btnUpload");
-  var cameraInput = document.getElementById("cameraInput");
-  var snapZone = document.getElementById("snapZone");
-  var snapResult = document.getElementById("snapResult");
-  var snapAnswer = document.getElementById("snapAnswer");
-  var snapQuestion = document.getElementById("snapQuestion");
-  var snapExplanation = document.getElementById("snapExplanation");
-  var snapSimilarity = document.getElementById("snapSimilarity");
-  var snapStatus = document.getElementById("snapStatus");
-  var btnSnap = document.getElementById("btnSnap");
-  var textInput = document.getElementById("textInput");
-  var btnSearch = document.getElementById("btnSearch");
-  var loading = document.getElementById("loading");
   var resultArea = document.getElementById("resultArea");
   var mainResult = document.getElementById("mainResult");
   var ocrTextBox = document.getElementById("ocrTextBox");
-  var searchResults = document.getElementById("searchResults");
   var noResult = document.getElementById("noResult");
 
+  // Text
+  var textInput = document.getElementById("textInput");
+  var btnSearch = document.getElementById("btnSearch");
+  var searchResults = document.getElementById("searchResults");
+
+  var cameraStream = null;
+  var scanTimer = null;
+  var scanning = false;
   var selectedFile = null;
 
-  // ---- Tab switching ----
+  // Max width to resize captured frames — keeps upload ~30-60KB
+  var FRAME_MAX_WIDTH = 640;
+  var JPEG_QUALITY = 0.4;
+
+  // --- Tabs ---
   tabs.forEach(function (tab) {
     tab.addEventListener("click", function () {
-      var target = tab.dataset.tab;
       tabs.forEach(function (t) { t.classList.remove("active"); });
       tab.classList.add("active");
       panels.forEach(function (p) { p.classList.remove("active"); });
-      document.getElementById("panel-" + target).classList.add("active");
+      document.getElementById("panel-" + tab.dataset.tab).classList.add("active");
+      if (tab.dataset.tab !== "camera") stopCamera();
     });
   });
 
-  // ---- Image Upload ----
+  // ===================== CAMERA (real-time) =====================
+  btnToggleCamera.addEventListener("click", function () {
+    cameraStream ? stopCamera() : startCamera();
+  });
+
+  function startCamera() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      cameraStatus.textContent = "浏览器不支持，请用 HTTPS 访问本页面";
+      return;
+    }
+    cameraStatus.textContent = "正在开启...";
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 } },
+      audio: false
+    }).then(function (stream) {
+      cameraStream = stream;
+      cameraVideo.srcObject = stream;
+      btnToggleCamera.textContent = "关闭摄像头";
+      cameraStatus.textContent = "自动识别中...";
+      startScanning();
+    }).catch(function (err) {
+      cameraStatus.textContent = "无法打开: " + err.message;
+    });
+  }
+
+  function stopCamera() {
+    stopScanning();
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(function (t) { t.stop(); });
+      cameraStream = null;
+    }
+    cameraVideo.srcObject = null;
+    btnToggleCamera.textContent = "开启摄像头";
+    cameraStatus.textContent = "已关闭";
+    liveResult.style.display = "none";
+  }
+
+  function startScanning() {
+    if (scanTimer) return;
+    scanTimer = setInterval(captureFrame, 1500);
+  }
+
+  function stopScanning() {
+    if (scanTimer) { clearInterval(scanTimer); scanTimer = null; }
+    scanning = false;
+  }
+
+  function captureFrame() {
+    if (!cameraStream || scanning) return;
+    var vw = cameraVideo.videoWidth, vh = cameraVideo.videoHeight;
+    if (!vw || !vh) return;
+    scanning = true;
+
+    // Resize to small dimensions
+    var scale = Math.min(FRAME_MAX_WIDTH / vw, 1);
+    var w = Math.round(vw * scale);
+    var h = Math.round(vh * scale);
+    cameraCanvas.width = w;
+    cameraCanvas.height = h;
+    cameraCanvas.getContext("2d").drawImage(cameraVideo, 0, 0, w, h);
+
+    cameraCanvas.toBlob(function (blob) {
+      if (!blob) { scanning = false; return; }
+
+      var formData = new FormData();
+      formData.append("image", blob, "f.jpg");
+
+      fetch("/api/ocr", { method: "POST", body: formData })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (data.match) {
+            liveAnswer.textContent = data.match.answer;
+            liveQuestion.textContent = data.match.question + "  (" + data.match.similarity + "%)";
+            liveResult.style.display = "block";
+            cameraStatus.textContent = "已匹配 · 持续识别中...";
+          } else {
+            liveResult.style.display = "none";
+            cameraStatus.textContent = "未匹配 · 持续识别中...";
+          }
+        })
+        .catch(function () { cameraStatus.textContent = "出错 · 重试中..."; })
+        .finally(function () { scanning = false; });
+    }, "image/jpeg", JPEG_QUALITY);
+  }
+
+  // ===================== UPLOAD =====================
   dropZone.addEventListener("click", function () { fileInput.click(); });
-
-  dropZone.addEventListener("dragover", function (e) {
-    e.preventDefault();
-    dropZone.classList.add("drag-over");
-  });
-
-  dropZone.addEventListener("dragleave", function () {
-    dropZone.classList.remove("drag-over");
-  });
-
+  dropZone.addEventListener("dragover", function (e) { e.preventDefault(); });
   dropZone.addEventListener("drop", function (e) {
     e.preventDefault();
-    dropZone.classList.remove("drag-over");
-    if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
   });
-
   fileInput.addEventListener("change", function () {
-    if (fileInput.files.length > 0) handleFile(fileInput.files[0]);
+    if (fileInput.files.length) handleFile(fileInput.files[0]);
   });
 
   function handleFile(file) {
@@ -74,142 +159,90 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   btnClearImg.addEventListener("click", function () {
-    selectedFile = null;
-    fileInput.value = "";
-    dropZone.style.display = "block";
-    previewArea.style.display = "none";
-    btnUpload.disabled = true;
-    hideResults();
+    selectedFile = null; fileInput.value = "";
+    dropZone.style.display = "block"; previewArea.style.display = "none";
+    btnUpload.disabled = true; resultArea.style.display = "none";
   });
 
   btnUpload.addEventListener("click", function () {
     if (!selectedFile) return;
     var formData = new FormData();
     formData.append("image", selectedFile);
-    showLoading();
+    btnUpload.textContent = "识别中..."; btnUpload.disabled = true;
     fetch("/api/ocr", { method: "POST", body: formData })
       .then(function (r) { return r.json(); })
-      .then(function (data) { showResults(data); })
-      .catch(function (err) { hideLoading(); alert("识别失败: " + err.message); });
+      .then(function (data) { showUploadResult(data); })
+      .catch(function () { alert("识别失败"); })
+      .finally(function () { btnUpload.textContent = "开始识别"; btnUpload.disabled = false; });
   });
 
-  // ---- Snap Camera (native capture, works on iOS HTTP) ----
-  snapZone.addEventListener("click", function () { cameraInput.click(); });
-  btnSnap.addEventListener("click", function () { cameraInput.click(); });
+  function showUploadResult(data) {
+    resultArea.style.display = "block";
+    mainResult.style.display = "none"; ocrTextBox.style.display = "none"; noResult.style.display = "none";
+    if (data.ocr_text) {
+      document.getElementById("ocrTextContent").textContent = data.ocr_text;
+      ocrTextBox.style.display = "block";
+    }
+    if (data.match) {
+      document.getElementById("resultAnswer").textContent = data.match.answer;
+      document.getElementById("resultQuestion").textContent = data.match.question;
+      var exp = document.getElementById("resultExplanation");
+      if (data.match.explanation) { exp.textContent = data.match.explanation; exp.style.display = "block"; }
+      else { exp.style.display = "none"; }
+      document.getElementById("resultSimilarity").innerHTML = "匹配度: <span>" + data.match.similarity + "%</span>";
+      mainResult.style.display = "block";
+    } else {
+      noResult.style.display = "block";
+    }
+  }
 
-  cameraInput.addEventListener("change", function () {
-    if (!cameraInput.files || !cameraInput.files[0]) return;
-    var file = cameraInput.files[0];
-    var formData = new FormData();
-    formData.append("image", file);
-
-    snapStatus.textContent = "正在识别...";
-    snapResult.style.display = "none";
-
-    fetch("/api/ocr", { method: "POST", body: formData })
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        if (data.match) {
-          snapAnswer.textContent = data.match.answer;
-          snapQuestion.textContent = data.match.question;
-          if (data.match.explanation) {
-            snapExplanation.textContent = data.match.explanation;
-            snapExplanation.style.display = "block";
-          } else {
-            snapExplanation.style.display = "none";
-          }
-          snapSimilarity.textContent = "匹配度: " + data.match.similarity + "%";
-          snapResult.style.display = "block";
-          snapStatus.textContent = "识别完成，点击按钮继续拍下一题";
-        } else {
-          snapResult.style.display = "none";
-          snapStatus.textContent = "未匹配到题目，请重新拍照或用文字搜索";
-        }
-      })
-      .catch(function () {
-        snapStatus.textContent = "识别失败，请重试";
-      });
-
-    // Reset input so same file can trigger change again
-    cameraInput.value = "";
+  // ===================== TEXT SEARCH =====================
+  btnSearch.addEventListener("click", doSearch);
+  textInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); doSearch(); }
   });
 
-  // ---- Text Search ----
-  btnSearch.addEventListener("click", function () {
+  function doSearch() {
     var text = textInput.value.trim();
     if (!text) return;
-    showLoading();
+    btnSearch.textContent = "搜索中..."; btnSearch.disabled = true;
     fetch("/api/search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: text }),
     })
       .then(function (r) { return r.json(); })
-      .then(function (data) { showResults(data); })
-      .catch(function (err) { hideLoading(); alert("搜索失败: " + err.message); });
-  });
-
-  textInput.addEventListener("keydown", function (e) {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); btnSearch.click(); }
-  });
-
-  // ---- Results ----
-  function showLoading() { loading.style.display = "block"; resultArea.style.display = "none"; }
-  function hideLoading() { loading.style.display = "none"; }
-
-  function hideResults() {
-    resultArea.style.display = "none";
-    mainResult.style.display = "none";
-    ocrTextBox.style.display = "none";
-    searchResults.style.display = "none";
-    noResult.style.display = "none";
+      .then(function (data) { showSearchResults(data); })
+      .catch(function () { alert("搜索失败"); })
+      .finally(function () { btnSearch.textContent = "搜索答案"; btnSearch.disabled = false; });
   }
 
-  function showResults(data) {
-    hideLoading();
-    hideResults();
-    resultArea.style.display = "block";
-    var hasResult = false;
-
-    if (data.ocr_text) {
-      document.getElementById("ocrTextContent").textContent = data.ocr_text;
-      ocrTextBox.style.display = "block";
-    }
-
-    if (data.match) {
-      hasResult = true;
-      document.getElementById("resultQuestion").textContent = data.match.question;
-      document.getElementById("resultAnswer").textContent = data.match.answer;
-      var expEl = document.getElementById("resultExplanation");
-      if (data.match.explanation) { expEl.textContent = data.match.explanation; expEl.style.display = "block"; }
-      else { expEl.style.display = "none"; }
-      document.getElementById("resultSimilarity").innerHTML = "匹配度: <span>" + data.match.similarity + "%</span>";
-      mainResult.style.display = "block";
-    }
-
-    if (data.search_results && data.search_results.length > 0) {
-      hasResult = true;
-      var list = document.getElementById("searchResultsList");
-      list.innerHTML = "";
-      data.search_results.forEach(function (r) {
+  function showSearchResults(data) {
+    var list = document.getElementById("searchResultsList");
+    list.innerHTML = "";
+    var items = [];
+    if (data.match) items.push(data.match);
+    if (data.search_results) items = items.concat(data.search_results);
+    // Deduplicate
+    var seen = {};
+    items = items.filter(function (r) {
+      if (seen[r.question]) return false;
+      seen[r.question] = true;
+      return true;
+    });
+    if (items.length === 0) {
+      list.innerHTML = '<div class="no-result"><p>未找到</p></div>';
+    } else {
+      items.forEach(function (r) {
         var div = document.createElement("div");
         div.className = "search-item";
-        div.innerHTML =
-          '<div class="q">' + esc(r.question) + "</div>" +
-          '<div class="a">' + esc(r.answer) + "</div>" +
-          (r.explanation ? '<div class="e">' + esc(r.explanation) + "</div>" : "") +
-          '<div class="s">匹配度: ' + r.similarity + "%</div>";
+        div.innerHTML = '<div class="a">' + esc(r.answer) + '</div><div class="q">' + esc(r.question) + '</div>' +
+          (r.explanation ? '<div class="e">' + esc(r.explanation) + '</div>' : '');
         list.appendChild(div);
       });
-      searchResults.style.display = "block";
     }
-
-    if (!hasResult) noResult.style.display = "block";
+    searchResults.style.display = "block";
   }
 
-  function esc(t) {
-    var d = document.createElement("div");
-    d.appendChild(document.createTextNode(t));
-    return d.innerHTML;
-  }
+  function esc(t) { var d = document.createElement("div"); d.appendChild(document.createTextNode(t)); return d.innerHTML; }
 });
