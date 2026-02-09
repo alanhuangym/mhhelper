@@ -34,9 +34,9 @@ document.addEventListener("DOMContentLoaded", function () {
   var scanning = false;
   var selectedFile = null;
 
-  // Max width to resize captured frames — keeps upload ~30-60KB
-  var FRAME_MAX_WIDTH = 640;
-  var JPEG_QUALITY = 0.4;
+  // Frame settings — balance between quality and speed
+  var FRAME_MAX_WIDTH = 800;
+  var JPEG_QUALITY = 0.6;
 
   // --- Tabs ---
   tabs.forEach(function (tab) {
@@ -88,7 +88,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function startScanning() {
     if (scanTimer) return;
-    scanTimer = setInterval(captureFrame, 1500);
+    scanTimer = setInterval(captureFrame, 500);
   }
 
   function stopScanning() {
@@ -125,8 +125,8 @@ document.addEventListener("DOMContentLoaded", function () {
             liveResult.style.display = "block";
             cameraStatus.textContent = "已匹配 · 持续识别中...";
           } else {
-            liveResult.style.display = "none";
-            cameraStatus.textContent = "未匹配 · 持续识别中...";
+            // Keep previous answer displayed, don't hide it
+            cameraStatus.textContent = "持续识别中...";
           }
         })
         .catch(function () { cameraStatus.textContent = "出错 · 重试中..."; })

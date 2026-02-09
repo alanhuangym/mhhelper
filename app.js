@@ -2,11 +2,12 @@ const express = require("express");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
+const sharp = require("sharp");
 const Tesseract = require("tesseract.js");
 const { QuestionBank } = require("./questionBank");
 
 const app = express();
-const PORT = 3000;
+const PORT = 3001;
 
 // Ensure uploads dir exists
 const uploadDir = path.join(__dirname, "uploads");
@@ -44,6 +45,24 @@ getOCRWorker()
     ocrWorker = null;
   });
 
+/**
+ * Preprocess image for better OCR accuracy:
+ * - Convert to grayscale
+ * - Increase contrast (normalize)
+ * - Sharpen
+ * - Output as high-quality PNG for Tesseract
+ */
+async function preprocessImage(inputPath) {
+  const outputPath = inputPath + "_processed.png";
+  await sharp(inputPath)
+    .grayscale()
+    .normalize()
+    .sharpen({ sigma: 1.5 })
+    .png()
+    .toFile(outputPath);
+  return outputPath;
+}
+
 // Middleware
 app.use(express.json());
 app.use("/static", express.static(path.join(__dirname, "static")));
@@ -59,9 +78,13 @@ app.post("/api/ocr", upload.single("image"), async (req, res) => {
   }
 
   const filepath = req.file.path;
+  let processedPath = null;
   try {
+    // Preprocess for better OCR
+    processedPath = await preprocessImage(filepath);
+
     const worker = await getOCRWorker();
-    const { data } = await worker.recognize(filepath);
+    const { data } = await worker.recognize(processedPath);
     const ocrText = data.text.replace(/\s+/g, "");
 
     const match = qb.findMatch(ocrText);
@@ -74,6 +97,7 @@ app.post("/api/ocr", upload.single("image"), async (req, res) => {
     res.status(500).json({ error: "OCR failed" });
   } finally {
     fs.unlink(filepath, () => {});
+    if (processedPath) fs.unlink(processedPath, () => {});
   }
 });
 
