@@ -61,33 +61,62 @@ async function preprocessImage(inputPath) {
 
 /**
  * Search OCR result lines for the answer text and return its bounding box.
- * Prefers shorter lines (answer options) over longer lines (question text).
+ * Uses fuzzy character matching with low threshold.
+ * Falls back to shortest line in bottom half of image (likely an answer option).
  */
 function findAnswerBox(ocrData, answerText) {
-  if (!answerText || !ocrData.lines) return null;
+  if (!answerText || !ocrData.lines || !ocrData.lines.length) return null;
   const clean = answerText.replace(/\s+/g, "");
   if (!clean) return null;
 
-  const candidates = [];
+  let bestBox = null;
+  let bestScore = 0;
+
   for (const line of ocrData.lines) {
     const lt = line.text.replace(/\s+/g, "");
     if (!lt) continue;
+
+    // Exact substring match
     if (lt.includes(clean)) {
-      candidates.push({ bbox: line.bbox, score: 1, len: lt.length });
-      continue;
+      return line.bbox;
     }
+
+    // Fuzzy: count how many answer characters appear in this line
     let hits = 0;
     for (const c of clean) {
       if (lt.includes(c)) hits++;
     }
-    const score = hits / clean.length;
-    if (score >= 0.6) {
-      candidates.push({ bbox: line.bbox, score, len: lt.length });
+    let score = hits / clean.length;
+
+    // Bonus for shorter lines (answer options are usually short)
+    if (lt.length <= 8) score += 0.15;
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestBox = line.bbox;
     }
   }
-  if (!candidates.length) return null;
-  candidates.sort((a, b) => b.score - a.score || a.len - b.len);
-  return candidates[0].bbox;
+
+  if (bestScore >= 0.3) return bestBox;
+
+  // Fallback: pick the shortest line in the bottom half of the image
+  // (quiz answer options are typically at the bottom and shorter than the question)
+  let imgHeight = 0;
+  for (const line of ocrData.lines) {
+    if (line.bbox && line.bbox.y1 > imgHeight) imgHeight = line.bbox.y1;
+  }
+  let fallback = null;
+  let fallbackLen = Infinity;
+  for (const line of ocrData.lines) {
+    const lt = line.text.replace(/\s+/g, "");
+    if (!lt || !line.bbox) continue;
+    const midY = (line.bbox.y0 + line.bbox.y1) / 2;
+    if (midY > imgHeight * 0.3 && lt.length < fallbackLen) {
+      fallbackLen = lt.length;
+      fallback = line.bbox;
+    }
+  }
+  return fallback;
 }
 
 // Middleware
