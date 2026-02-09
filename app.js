@@ -2,8 +2,7 @@ const express = require("express");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
-const sharp = require("sharp");
-const Tesseract = require("tesseract.js");
+const http = require("http");
 const { QuestionBank } = require("./questionBank");
 
 const app = express();
@@ -23,57 +22,54 @@ const upload = multer({
 const qb = new QuestionBank();
 console.log(`Loaded ${qb.size()} questions`);
 
-// Create a persistent Tesseract worker for Chinese (load from local lang-data)
-let ocrWorker = null;
-const langPath = path.join(__dirname, "lang-data");
-
-async function getOCRWorker() {
-  if (!ocrWorker) {
-    ocrWorker = await Tesseract.createWorker("chi_sim", 1, {
-      langPath,
-      logger: () => {},
-    });
-  }
-  return ocrWorker;
-}
-
-// Pre-initialize worker at startup (don't crash server if it fails)
-getOCRWorker()
-  .then(() => console.log("OCR engine ready"))
-  .catch((err) => {
-    console.error("OCR init failed, will retry on first request:", err.message);
-    ocrWorker = null;
-  });
-
 /**
- * Preprocess image for better OCR accuracy:
- * - Convert to grayscale
- * - Increase contrast (normalize)
- * - Sharpen
- * - Output as high-quality PNG for Tesseract
+ * Call the Python RapidOCR service running on localhost:3002.
  */
-async function preprocessImage(inputPath) {
-  const outputPath = inputPath + "_processed.png";
-  await sharp(inputPath)
-    .grayscale()
-    .normalize()
-    .sharpen({ sigma: 1.5 })
-    .png()
-    .toFile(outputPath);
-  return outputPath;
+function callOCR(filepath) {
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify({ filepath });
+    const options = {
+      hostname: "127.0.0.1",
+      port: 3002,
+      path: "/ocr",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(body),
+      },
+    };
+    const req = http.request(options, (res) => {
+      let data = "";
+      res.on("data", (chunk) => {
+        data += chunk;
+      });
+      res.on("end", () => {
+        try {
+          resolve(JSON.parse(data));
+        } catch (e) {
+          reject(new Error("OCR service returned invalid JSON"));
+        }
+      });
+    });
+    req.on("error", (err) =>
+      reject(new Error("OCR service unavailable: " + err.message))
+    );
+    req.write(body);
+    req.end();
+  });
 }
 
 /**
  * Search OCR result lines for the answer text and return its bounding box.
  * Prefers shorter lines (answer options) over longer lines (question text).
  */
-function findAnswerBox(ocrData, answerText) {
-  if (!answerText || !ocrData.lines) return null;
+function findAnswerBox(ocrResult, answerText) {
+  if (!answerText || !ocrResult.lines) return null;
   const clean = answerText.replace(/\s+/g, "");
   if (!clean) return null;
 
   const candidates = [];
-  for (const line of ocrData.lines) {
+  for (const line of ocrResult.lines) {
     const lt = line.text.replace(/\s+/g, "");
     if (!lt) continue;
     if (lt.includes(clean)) {
@@ -110,17 +106,15 @@ app.post("/api/ocr", upload.single("image"), async (req, res) => {
   }
 
   const filepath = req.file.path;
-  let processedPath = null;
   try {
-    // Preprocess for better OCR
-    processedPath = await preprocessImage(filepath);
+    const ocrResult = await callOCR(filepath);
+    if (ocrResult.error) {
+      return res.status(500).json({ error: ocrResult.error });
+    }
 
-    const worker = await getOCRWorker();
-    const { data } = await worker.recognize(processedPath);
-    const ocrText = data.text.replace(/\s+/g, "");
-
+    const ocrText = (ocrResult.text || "").replace(/\s+/g, "");
     const match = qb.findMatch(ocrText);
-    const answerBox = match ? findAnswerBox(data, match.answer) : null;
+    const answerBox = match ? findAnswerBox(ocrResult, match.answer) : null;
     res.json({
       ocr_text: ocrText,
       match: match ? match.toJSON() : null,
@@ -131,7 +125,6 @@ app.post("/api/ocr", upload.single("image"), async (req, res) => {
     res.status(500).json({ error: "OCR failed" });
   } finally {
     fs.unlink(filepath, () => {});
-    if (processedPath) fs.unlink(processedPath, () => {});
   }
 });
 
