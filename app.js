@@ -6,7 +6,7 @@ const Tesseract = require("tesseract.js");
 const { QuestionBank } = require("./questionBank");
 
 const app = express();
-const PORT = 5000;
+const PORT = 3000;
 
 // Ensure uploads dir exists
 const uploadDir = path.join(__dirname, "uploads");
