@@ -95,26 +95,21 @@ app.post("/api/search", (req, res) => {
   });
 });
 
-// Always start HTTP
-app.listen(PORT, () => {
-  console.log(`HTTP server running at http://0.0.0.0:${PORT}`);
-});
-
-// Also start HTTPS if certs exist (required for camera on iOS Safari)
-const HTTPS_PORT = PORT + 1;
+// Start server on port 3000 — use HTTPS if certs exist, otherwise HTTP
 const certDir = path.join(__dirname, "certs");
 const certFile = path.join(certDir, "server.crt");
 const keyFile = path.join(certDir, "server.key");
 
 if (fs.existsSync(certFile) && fs.existsSync(keyFile)) {
-  const httpsOptions = {
+  https.createServer({
     key: fs.readFileSync(keyFile),
     cert: fs.readFileSync(certFile),
-  };
-  https.createServer(httpsOptions, app).listen(HTTPS_PORT, () => {
-    console.log(`HTTPS server running at https://0.0.0.0:${HTTPS_PORT}`);
+  }, app).listen(PORT, () => {
+    console.log(`HTTPS server running at https://0.0.0.0:${PORT}`);
   });
 } else {
-  console.log("No SSL certs found. Run: npm run gen-cert");
-  console.log("Then restart to enable HTTPS (for iOS camera).");
+  app.listen(PORT, () => {
+    console.log(`HTTP server running at http://0.0.0.0:${PORT}`);
+    console.log("No SSL certs found. Run: npm run gen-cert  then restart for HTTPS.");
+  });
 }
