@@ -10,7 +10,7 @@
     <div class="container">
         <header>
             <h1>梦幻答题助手</h1>
-            <p class="subtitle">对准电脑屏幕，自动识别答案 <span class="version">v2.3</span></p>
+            <p class="subtitle">对准电脑屏幕，自动识别答案 <span class="version">v2.4</span></p>
         </header>
 
         <!-- Tab Switcher -->
@@ -26,11 +26,12 @@
                 <video id="cameraVideo" autoplay playsinline muted></video>
                 <canvas id="cameraCanvas" style="display:none;"></canvas>
                 <canvas id="overlayCanvas"></canvas>
-                <!-- Answer overlay on camera -->
-                <div class="live-result" id="liveResult" style="display:none;">
-                    <div class="live-answer" id="liveAnswer"></div>
-                    <div class="live-question" id="liveQuestion"></div>
-                </div>
+            <!-- Answer overlay on camera -->
+            <div class="live-result" id="liveResult" style="display:none;">
+                <div class="live-answer" id="liveAnswer"></div>
+                <div class="live-question" id="liveQuestion"></div>
+                <div class="live-explanation" id="liveExplanation"></div>
+            </div>
             </div>
             <div class="camera-status" id="cameraStatus">点击下方按钮开启</div>
             <button class="btn btn-primary" id="btnToggleCamera">开启摄像头</button>

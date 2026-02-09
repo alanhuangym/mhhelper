@@ -124,6 +124,13 @@ document.addEventListener("DOMContentLoaded", function () {
           if (data.match) {
             liveAnswer.textContent = data.match.answer;
             liveQuestion.textContent = data.match.question + "  (" + data.match.similarity + "%)";
+            // Display explanation if available (not highlighted)
+            if (data.match.explanation) {
+              liveExplanation.textContent = data.match.explanation;
+              liveExplanation.style.display = "block";
+            } else {
+              liveExplanation.style.display = "none";
+            }
             liveResult.style.display = "block";
             cameraStatus.textContent = "已匹配 · 持续识别中...";
             if (data.answer_box) {
