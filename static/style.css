@@ -12,6 +12,7 @@ body {
 header { text-align: center; padding: 16px 0 10px; }
 header h1 { font-size: 24px; color: #ff6b6b; letter-spacing: 2px; }
 .subtitle { color: #888; font-size: 13px; margin-top: 4px; }
+.version { color: #555; font-size: 11px; }
 
 /* Tabs */
 .tabs { display: flex; margin: 14px 0; background: #1a2634; border-radius: 10px; overflow: hidden; }

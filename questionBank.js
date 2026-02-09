@@ -94,7 +94,7 @@ class QuestionBank {
       }
     }
 
-    return bestScore >= threshold ? bestMatch : null;
+    return bestMatch;
   }
 
   search(keyword) {
